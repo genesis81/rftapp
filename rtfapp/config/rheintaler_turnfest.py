@@ -9,12 +9,6 @@ def get_data():
             "items": [
                    {
                        "type": "doctype",
-                       "name": "testtype",
-                       "label": _("VAT Declaration"),
-                       "description": _("VAT Declaration")
-                   },
-                   {
-                       "type": "doctype",
                        "name": "Item",
                        "label": _("Item"),
                        "description": _("Item")
