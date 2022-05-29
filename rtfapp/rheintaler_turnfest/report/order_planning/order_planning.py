@@ -18,13 +18,15 @@ def get_columns():
         {"label": _("Item Group"), "fieldname": "item_group", "fieldtype": "Link", "options": "Item Group", "width": 100},
         {"label": _("Supplier"), "fieldname": "supplier", "fieldtype": "Link", "options": "Supplier", "width": 100},
         {"label": _("UOM"), "fieldname": "stock_uom", "fieldtype": "Link", "options": "UOM", "width": 50},
+        {"label": _("Einkauf Einheit"), "fieldname": "purchase_uom", "fieldtype": "Link", "options": "UOM", "width": 50},
         {"label": _("Actual Qty"), "fieldname": "actual_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         #{"label": _("Planned Qty"), "fieldname": "planned_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         {"label": _("Ordered Qty"), "fieldname": "ordered_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         {"label": _("Reserved Qty"), "fieldname": "reserved_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         {"label": _("Safety Stock"), "fieldname": "safety_stock", "fieldtype": "Float", "width": 100, "convertible": "qty"},
         {"label": _("Projected Qty"), "fieldname": "projected_qty", "fieldtype": "Float", "width": 100, "convertible": "qty"},
-        {"label": _("To order"), "fieldname": "to_order", "fieldtype": "Float", "width": 100}
+        {"label": _("To order"), "fieldname": "to_order", "fieldtype": "Float", "width": 100},
+        {"label": _("To Purchase"), "fieldname": "to_purchase", "fieldtype": "Float", "width": 100}
     ]
 
 @frappe.whitelist()
@@ -48,6 +50,7 @@ def get_data(filters):
                 `raw`.`item_name` AS `item_name`,
                 `raw`.`item_group` AS `item_group`,
                 `raw`.`stock_uom` AS `stock_uom`,
+                `raw`.`purchase_uom` AS `purchase_uom`,
                 `raw`.`safety_stock` AS `safety_stock`,
                 SUM(`raw`.`actual_qty`) AS `actual_qty`,
                 SUM(`raw`.`planned_qty`) AS `planned_qty`,
@@ -55,13 +58,16 @@ def get_data(filters):
                 (SUM(`raw`.`reserved_qty`) + SUM(`raw`.`reserved_qty_for_production`) + SUM(`raw`.`reserved_qty_for_sub_contract`)) AS `reserved_qty`,
                 SUM(`raw`.`projected_qty`) AS `projected_qty`,
                 `raw`.`supplier` AS `supplier`,
-                (`raw`.`safety_stock` - SUM(`raw`.`projected_qty`)) AS `to_order`
+                `raw`.`purchase_factor`  as purchase_factor,
+                (`raw`.`safety_stock` - SUM(`raw`.`projected_qty`)) AS `to_order`,
+                (`raw`.`safety_stock` - SUM(`raw`.`projected_qty`) / `raw`.`purchase_factor`) AS `to_purchase`
             FROM
                 (SELECT 
                     `tabBin`.`item_code` AS `item_code`,
                     `tabItem`.`item_name` AS `item_name`,
                     `tabItem`.`item_group` AS `item_group`,
                     `tabItem`.`stock_uom` AS `stock_uom`,
+                    `tabItem`.`purchase_uom` AS `purchase_uom`,
                     `tabItem`.`safety_stock` AS `safety_stock`,
                     `tabBin`.`actual_qty` AS `actual_qty`,
                     `tabBin`.`planned_qty` AS `planned_qty`,
@@ -74,7 +80,11 @@ def get_data(filters):
                      FROM `tabItem Default`
                      WHERE `tabItem Default`.`parent` = `tabItem`.`item_code`
                      ORDER BY `default_supplier` DESC
-                     LIMIT 1) AS `supplier`
+                     LIMIT 1) AS `supplier`,
+                     (SELECT `tabUOM Conversion Detail`.`conversion_factor`
+                     FROM `tabUOM Conversion Detail`
+                     WHERE `tabUOM Conversion Detail`.`parent` = `tabItem`.`item_code` AND `tabUOM Conversion Detail`.`uom` = `tabItem`.`purchase_uom`
+                     LIMIT 1) AS `purchase_factor`
                 FROM `tabBin`
                 LEFT JOIN `tabItem` ON `tabBin`.`item_code` = `tabItem`.`name`) AS `raw`
             WHERE 
